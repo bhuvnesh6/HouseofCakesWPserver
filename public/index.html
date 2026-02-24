@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>WhatsApp Login</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg: #0a0a0f;
+            --surface: #111118;
+            --surface2: #18181f;
+            --border: rgba(255,255,255,0.06);
+            --green: #25d366;
+            --green2: #128c7e;
+            --green-glow: rgba(37,211,102,0.18);
+            --green-glow2: rgba(37,211,102,0.07);
+            --text: #f0f0f8;
+            --muted: rgba(240,240,248,0.45);
+            --accent: #25d366;
+        }
+
+        html { scroll-behavior: smooth; }
+
+        body {
+            font-family: 'DM Sans', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        /* Animated background */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background:
+                radial-gradient(ellipse 80% 60% at 20% 10%, rgba(37,211,102,0.06) 0%, transparent 60%),
+                radial-gradient(ellipse 60% 50% at 80% 90%, rgba(18,140,126,0.08) 0%, transparent 60%),
+                radial-gradient(ellipse 40% 40% at 50% 50%, rgba(37,211,102,0.03) 0%, transparent 70%);
+            pointer-events: none;
+            z-index: 0;
+            animation: bgPulse 8s ease-in-out infinite alternate;
+        }
+
+        @keyframes bgPulse {
+            0% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
+
+        /* Noise grain overlay */
+        body::after {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+            pointer-events: none;
+            z-index: 1;
+            opacity: 0.5;
+        }
+
+        /* Floating orbs */
+        .orb {
+            position: fixed;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 0;
+            filter: blur(80px);
+            animation: orbFloat linear infinite;
+        }
+        .orb1 { width: 400px; height: 400px; background: rgba(37,211,102,0.06); top: -100px; left: -100px; animation-duration: 20s; }
+        .orb2 { width: 300px; height: 300px; background: rgba(18,140,126,0.07); bottom: -80px; right: -80px; animation-duration: 25s; animation-direction: reverse; }
+        .orb3 { width: 200px; height: 200px; background: rgba(37,211,102,0.04); top: 50%; left: 50%; animation-duration: 15s; }
+
+        @keyframes orbFloat {
+            0% { transform: translate(0, 0) rotate(0deg); }
+            33% { transform: translate(30px, -20px) rotate(120deg); }
+            66% { transform: translate(-20px, 30px) rotate(240deg); }
+            100% { transform: translate(0, 0) rotate(360deg); }
+        }
+
+        /* Main container */
+        .container {
+            position: relative;
+            z-index: 2;
+            width: 100%;
+            max-width: 480px;
+            padding: 24px;
+            opacity: 0;
+            transform: translateY(40px);
+            animation: pageLoad 0.9s cubic-bezier(0.22,1,0.36,1) 0.1s forwards;
+        }
+
+        @keyframes pageLoad {
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Card */
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 28px;
+            padding: 40px 36px;
+            backdrop-filter: blur(20px);
+            box-shadow:
+                0 0 0 1px rgba(255,255,255,0.03),
+                0 32px 64px rgba(0,0,0,0.5),
+                0 0 80px var(--green-glow2),
+                inset 0 1px 0 rgba(255,255,255,0.07);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--green), transparent);
+            opacity: 0.5;
+        }
+
+        /* Logo & Header */
+        .header {
+            text-align: center;
+            margin-bottom: 36px;
+            opacity: 0;
+            transform: translateY(20px);
+            animation: fadeUp 0.7s cubic-bezier(0.22,1,0.36,1) 0.3s forwards;
+        }
+
+        @keyframes fadeUp {
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .logo-wrap {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 72px;
+            height: 72px;
+            border-radius: 22px;
+            background: linear-gradient(135deg, #1a2e1f 0%, #0f1f14 100%);
+            border: 1px solid rgba(37,211,102,0.2);
+            margin-bottom: 20px;
+            box-shadow: 0 0 30px rgba(37,211,102,0.15), inset 0 1px 0 rgba(255,255,255,0.05);
+            position: relative;
+            animation: logoPulse 3s ease-in-out infinite;
+        }
+
+        @keyframes logoPulse {
+            0%, 100% { box-shadow: 0 0 30px rgba(37,211,102,0.15), inset 0 1px 0 rgba(255,255,255,0.05); }
+            50% { box-shadow: 0 0 50px rgba(37,211,102,0.25), inset 0 1px 0 rgba(255,255,255,0.05); }
+        }
+
+        .logo-wrap svg {
+            width: 38px;
+            height: 38px;
+            filter: drop-shadow(0 0 8px rgba(37,211,102,0.4));
+        }
+
+        h1 {
+            font-family: 'Syne', sans-serif;
+            font-size: 28px;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            color: var(--text);
+            line-height: 1.1;
+        }
+
+        h1 span {
+            background: linear-gradient(135deg, #25d366, #128c7e);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .subtitle {
+            font-size: 13.5px;
+            color: var(--muted);
+            margin-top: 8px;
+            font-weight: 300;
+            letter-spacing: 0.3px;
+        }
+
+        /* Section label */
+        .section-label {
+            font-family: 'Syne', sans-serif;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-bottom: 14px;
+            opacity: 0;
+            animation: fadeUp 0.7s cubic-bezier(0.22,1,0.36,1) 0.5s forwards;
+        }
+
+        /* Buttons */
+        .btn-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 28px;
+            opacity: 0;
+            animation: fadeUp 0.7s cubic-bezier(0.22,1,0.36,1) 0.55s forwards;
+        }
+
+        .client-btn {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 20px 16px;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            color: var(--text);
+            font-family: 'Syne', sans-serif;
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.35s cubic-bezier(0.22,1,0.36,1);
+            overflow: hidden;
+            outline: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .client-btn::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, rgba(37,211,102,0.12) 0%, rgba(18,140,126,0.08) 100%);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            border-radius: inherit;
+        }
+
+        .client-btn::after {
+            content: '';
+            position: absolute;
+            bottom: 0; left: 50%; right: 50%;
+            height: 2px;
+            background: linear-gradient(90deg, var(--green2), var(--green));
+            border-radius: 2px;
+            transition: all 0.4s cubic-bezier(0.22,1,0.36,1);
+        }
+
+        .client-btn:hover {
+            border-color: rgba(37,211,102,0.3);
+            transform: translateY(-3px) scale(1.02);
+            box-shadow: 0 12px 40px rgba(0,0,0,0.3), 0 0 30px var(--green-glow);
+        }
+
+        .client-btn:hover::before { opacity: 1; }
+        .client-btn:hover::after { left: 10%; right: 10%; }
+
+        .client-btn:active {
+            transform: translateY(-1px) scale(0.99);
+            transition-duration: 0.1s;
+        }
+
+        .client-btn.active {
+            border-color: rgba(37,211,102,0.5);
+            background: linear-gradient(135deg, rgba(37,211,102,0.1) 0%, rgba(18,140,126,0.07) 100%);
+            box-shadow: 0 0 40px var(--green-glow), 0 8px 30px rgba(0,0,0,0.2);
+        }
+
+        .client-btn.active::after { left: 10%; right: 10%; }
+
+        .btn-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            background: rgba(37,211,102,0.1);
+            border: 1px solid rgba(37,211,102,0.15);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            transition: all 0.3s ease;
+        }
+
+        .client-btn:hover .btn-icon {
+            background: rgba(37,211,102,0.18);
+            border-color: rgba(37,211,102,0.3);
+            transform: rotate(-5deg) scale(1.1);
+        }
+
+        .btn-label {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--muted);
+            font-family: 'DM Sans', sans-serif;
+            transition: color 0.3s;
+        }
+
+        .client-btn:hover .btn-label,
+        .client-btn.active .btn-label {
+            color: var(--green);
+        }
+
+        /* Alert / Toast */
+        #toast {
+            position: fixed;
+            top: 24px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-100px);
+            z-index: 100;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 50px;
+            padding: 12px 22px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 13.5px;
+            font-weight: 500;
+            color: var(--text);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(37,211,102,0.1);
+            transition: transform 0.5s cubic-bezier(0.34,1.56,0.64,1), opacity 0.5s ease;
+            opacity: 0;
+            white-space: nowrap;
+            max-width: 90vw;
+        }
+
+        #toast.show {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+        }
+
+        #toast .toast-dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: var(--green);
+            box-shadow: 0 0 8px var(--green);
+            flex-shrink: 0;
+            animation: dotBlink 1.5s ease-in-out infinite;
+        }
+
+        @keyframes dotBlink {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(0.7); }
+        }
+
+        #toast.success .toast-dot { background: var(--green); box-shadow: 0 0 8px var(--green); }
+        #toast.error .toast-dot { background: #ff4757; box-shadow: 0 0 8px #ff4757; }
+        #toast.info .toast-dot { background: #70a1ff; box-shadow: 0 0 8px #70a1ff; }
+
+        /* QR Section */
+        .qr-section {
+            opacity: 0;
+            animation: fadeUp 0.7s cubic-bezier(0.22,1,0.36,1) 0.65s forwards;
+        }
+
+        .qr-frame {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 22px;
+            padding: 28px;
+            text-align: center;
+            min-height: 240px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.4s cubic-bezier(0.22,1,0.36,1);
+        }
+
+        .qr-frame::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, rgba(37,211,102,0.03) 0%, transparent 60%);
+            pointer-events: none;
+        }
+
+        /* Corner decorations */
+        .qr-corner {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border-color: rgba(37,211,102,0.3);
+            border-style: solid;
+        }
+
+        .qr-corner.tl { top: 12px; left: 12px; border-width: 2px 0 0 2px; border-radius: 4px 0 0 0; }
+        .qr-corner.tr { top: 12px; right: 12px; border-width: 2px 2px 0 0; border-radius: 0 4px 0 0; }
+        .qr-corner.bl { bottom: 12px; left: 12px; border-width: 0 0 2px 2px; border-radius: 0 0 0 4px; }
+        .qr-corner.br { bottom: 12px; right: 12px; border-width: 0 2px 2px 0; border-radius: 0 0 4px 0; }
+
+        /* Empty state */
+        .qr-empty {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+            color: var(--muted);
+        }
+
+        .qr-empty-icon {
+            width: 56px;
+            height: 56px;
+            border-radius: 16px;
+            background: rgba(37,211,102,0.05);
+            border: 1px solid rgba(37,211,102,0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            animation: iconFloat 3s ease-in-out infinite;
+        }
+
+        @keyframes iconFloat {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-6px); }
+        }
+
+        .qr-empty p {
+            font-size: 13.5px;
+            font-weight: 300;
+            letter-spacing: 0.2px;
+        }
+
+        /* QR Code Display */
+        #qr {
+            width: 100%;
+        }
+
+        #qr img {
+            border-radius: 12px;
+            max-width: 200px;
+            width: 100%;
+            height: auto;
+            box-shadow: 0 0 40px rgba(37,211,102,0.15);
+            animation: qrAppear 0.5s cubic-bezier(0.22,1,0.36,1);
+        }
+
+        @keyframes qrAppear {
+            from { opacity: 0; transform: scale(0.85); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        #qr .qr-message {
+            font-size: 13px;
+            color: var(--muted);
+            margin-top: 14px;
+            line-height: 1.6;
+        }
+
+        /* Scanning animation overlay on QR */
+        .scan-line {
+            display: none;
+            position: absolute;
+            left: 14%;
+            right: 14%;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--green), transparent);
+            border-radius: 2px;
+            box-shadow: 0 0 12px var(--green);
+            animation: scanAnim 2s ease-in-out infinite;
+        }
+
+        .has-qr .scan-line { display: block; }
+
+        @keyframes scanAnim {
+            0% { top: 15%; opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { top: 85%; opacity: 0; }
+        }
+
+        /* Loading spinner */
+        .spinner {
+            width: 40px; height: 40px;
+            border: 2px solid rgba(37,211,102,0.15);
+            border-top-color: var(--green);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .loading-text {
+            font-size: 13px;
+            color: var(--muted);
+            margin-top: 12px;
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 0.5; }
+            50% { opacity: 1; }
+        }
+
+        /* Logged in success state */
+        .success-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+            animation: qrAppear 0.5s cubic-bezier(0.22,1,0.36,1);
+        }
+
+        .success-check {
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, rgba(37,211,102,0.2), rgba(18,140,126,0.1));
+            border: 2px solid rgba(37,211,102,0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            box-shadow: 0 0 40px rgba(37,211,102,0.25);
+            animation: successPop 0.6s cubic-bezier(0.34,1.56,0.64,1);
+        }
+
+        @keyframes successPop {
+            from { transform: scale(0); }
+            to { transform: scale(1); }
+        }
+
+        .success-text {
+            font-family: 'Syne', sans-serif;
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--green);
+        }
+
+        .success-sub {
+            font-size: 12.5px;
+            color: var(--muted);
+        }
+
+        /* Status bar */
+        .status-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 20px;
+            padding: 10px 14px;
+            background: rgba(37,211,102,0.04);
+            border: 1px solid rgba(37,211,102,0.08);
+            border-radius: 12px;
+            font-size: 12px;
+            color: var(--muted);
+            opacity: 0;
+            animation: fadeUp 0.7s cubic-bezier(0.22,1,0.36,1) 0.75s forwards;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .status-dot {
+            width: 6px; height: 6px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.2);
+            transition: all 0.4s ease;
+        }
+
+        .status-dot.live {
+            background: var(--green);
+            box-shadow: 0 0 8px var(--green);
+            animation: dotBlink 2s ease-in-out infinite;
+        }
+
+        #activeClient {
+            font-family: 'Syne', sans-serif;
+            font-weight: 600;
+            color: var(--text);
+            font-size: 11px;
+        }
+
+        /* Divider */
+        .divider {
+            height: 1px;
+            background: var(--border);
+            margin: 24px 0;
+            position: relative;
+        }
+
+        /* Responsive */
+        @media (max-width: 480px) {
+            .container { padding: 16px; }
+            .card { padding: 28px 20px; border-radius: 22px; }
+            h1 { font-size: 24px; }
+            .btn-group { gap: 10px; }
+            .client-btn { padding: 16px 12px; }
+        }
+
+        @media (max-width: 360px) {
+            .btn-group { grid-template-columns: 1fr; }
+        }
+
+        /* Scroll animation helper */
+        .reveal {
+            opacity: 0;
+            transform: translateY(24px);
+            transition: opacity 0.6s ease, transform 0.6s cubic-bezier(0.22,1,0.36,1);
+        }
+        .reveal.visible { opacity: 1; transform: translateY(0); }
+    </style>
+</head>
+<body>
+
+    <div class="orb orb1"></div>
+    <div class="orb orb2"></div>
+    <div class="orb orb3"></div>
+
+    <!-- Toast -->
+    <div id="toast">
+        <div class="toast-dot"></div>
+        <span id="toastMsg">Connected</span>
+    </div>
+
+    <div class="container">
+        <div class="card">
+
+            <!-- Header -->
+            <div class="header">
+                <div class="logo-wrap">
+                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 2C6.48 2 2 6.48 2 12C2 13.85 2.5 15.58 3.36 17.07L2 22L7.1 20.67C8.54 21.52 10.21 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2Z" fill="#25d366"/>
+                        <path d="M16.9 15.39C16.66 16.07 15.67 16.63 14.91 16.8C14.39 16.91 13.71 17 11.46 16.06C8.6 14.88 6.76 11.97 6.62 11.79C6.48 11.61 5.5 10.3 5.5 8.94C5.5 7.58 6.18 6.92 6.46 6.63C6.7 6.38 7.09 6.27 7.46 6.27C7.58 6.27 7.69 6.28 7.79 6.28C8.07 6.29 8.21 6.31 8.39 6.73C8.61 7.26 9.14 8.62 9.2 8.74C9.27 8.87 9.33 9.03 9.25 9.21C9.18 9.4 9.11 9.48 8.98 9.63C8.86 9.77 8.74 9.95 8.64 10.05C8.51 10.17 8.37 10.3 8.52 10.56C8.67 10.82 9.2 11.69 9.99 12.39C11.01 13.29 11.84 13.58 12.13 13.7C12.35 13.79 12.62 13.77 12.77 13.61C12.97 13.4 13.21 13.05 13.46 12.71C13.64 12.47 13.87 12.44 14.11 12.53C14.36 12.61 15.71 13.28 15.97 13.41C16.24 13.54 16.42 13.6 16.48 13.72C16.55 13.84 16.55 14.41 16.9 15.39Z" fill="#111118"/>
+                    </svg>
+                </div>
+                <h1>WhatsApp <span>Connect</span></h1>
+                <p class="subtitle">Select a client to generate your QR code</p>
+            </div>
+
+            <!-- Client Buttons -->
+            <div class="section-label">Choose Client</div>
+            <div class="btn-group">
+                <button class="client-btn" onclick="startClient('client1')" id="btn-client1">
+                    <div class="btn-icon">📱</div>
+                    <div>
+                        <div>Testing</div>
+                        <div class="btn-label">Primary</div>
+                    </div>
+                </button>
+                <button class="client-btn" onclick="startClient('client2')" id="btn-client2">
+                    <div class="btn-icon">📲</div>
+                    <div>
+                        <div>House of Cakes</div>
+                        <div class="btn-label">Secondary</div>
+                    </div>
+                </button>
+            </div>
+
+            <div class="divider"></div>
+
+            <!-- QR Section -->
+            <div class="qr-section">
+                <div class="section-label">QR Code</div>
+                <div class="qr-frame" id="qrFrame">
+                    <div class="qr-corner tl"></div>
+                    <div class="qr-corner tr"></div>
+                    <div class="qr-corner bl"></div>
+                    <div class="qr-corner br"></div>
+                    <div class="scan-line"></div>
+
+                    <div class="qr-empty" id="qrEmpty">
+                        <div class="qr-empty-icon">⬛</div>
+                        <p>Your QR code will appear here</p>
+                    </div>
+
+                    <div id="qr"></div>
+                </div>
+            </div>
+
+            <!-- Status Bar -->
+            <div class="status-bar">
+                <div class="status-indicator">
+                    <div class="status-dot" id="statusDot"></div>
+                    <span>Status</span>
+                </div>
+                <span id="activeClient">No client selected</span>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        let interval;
+        let currentClient = null;
+
+        // Toast system
+        function showToast(msg, type = 'info', duration = 3500) {
+            const toast = document.getElementById('toast');
+            const toastMsg = document.getElementById('toastMsg');
+            toastMsg.textContent = msg;
+            toast.className = `show ${type}`;
+            clearTimeout(toast._timeout);
+            toast._timeout = setTimeout(() => {
+                toast.className = '';
+            }, duration);
+        }
+
+        function setActive(client) {
+            document.querySelectorAll('.client-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById(`btn-${client}`)?.classList.add('active');
+            document.getElementById('activeClient').textContent = client === 'client1' ? 'Client 1 · Primary' : 'Client 2 · Secondary';
+            document.getElementById('statusDot').classList.add('live');
+        }
+
+        function setQRContent(html) {
+            const qrEl = document.getElementById('qr');
+            const empty = document.getElementById('qrEmpty');
+            const frame = document.getElementById('qrFrame');
+
+            if (!html || html.trim() === '') return;
+
+            if (html.includes('logged in')) {
+                empty.style.display = 'none';
+                frame.classList.remove('has-qr');
+                qrEl.innerHTML = `
+                    <div class="success-state">
+                        <div class="success-check">✓</div>
+                        <div class="success-text">Logged In!</div>
+                        <div class="success-sub">${currentClient || 'Client'} connected successfully</div>
+                    </div>`;
+                showToast('Successfully logged in!', 'success', 5000);
+                document.getElementById('statusDot').style.background = 'var(--green)';
+                return;
+            }
+
+            // Has QR image or content
+            empty.style.display = 'none';
+            frame.classList.add('has-qr');
+            qrEl.innerHTML = html;
+        }
+
+        function showLoading() {
+            const qrEl = document.getElementById('qr');
+            const empty = document.getElementById('qrEmpty');
+            empty.style.display = 'none';
+            qrEl.innerHTML = `<div class="spinner"></div><div class="loading-text">Generating QR…</div>`;
+        }
+
+        function startClient(client) {
+            if (currentClient === client && interval) return;
+            currentClient = client;
+            setActive(client);
+            showLoading();
+            showToast(`Starting ${client === 'client1' ? 'Client 1' : 'Client 2'}…`, 'info');
+
+            fetch(`/start/${client}`)
+                .then(res => res.text())
+                .then(msg => {
+                    console.log(msg);
+                    showToast(msg || 'Client started', 'success');
+
+                    if (interval) clearInterval(interval);
+
+                    interval = setInterval(() => {
+                        fetch(`/qr/${client}`)
+                            .then(res => res.text())
+                            .then(html => {
+                                setQRContent(html);
+                                if (html.includes('logged in')) {
+                                    clearInterval(interval);
+                                    interval = null;
+                                }
+                            })
+                            .catch(() => {
+                                showToast('Error fetching QR code', 'error');
+                            });
+                    }, 3000);
+                })
+                .catch(() => {
+                    showToast('Failed to start client', 'error');
+                    document.getElementById('qr').innerHTML = '';
+                    document.getElementById('qrEmpty').style.display = 'flex';
+                    document.getElementById('qrFrame').classList.remove('has-qr');
+                });
+        }
+
+        // Scroll reveal for any future content below fold
+        const observer = new IntersectionObserver(entries => {
+            entries.forEach(e => {
+                if (e.isIntersecting) {
+                    e.target.classList.add('visible');
+                    observer.unobserve(e.target);
+                }
+            });
+        }, { threshold: 0.15 });
+
+        document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+    </script>
+</body>
+</html>
