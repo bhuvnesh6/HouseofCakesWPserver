@@ -100,12 +100,17 @@ async function initClient(clientConfig) {
 
         // If YOU manually send message
         if (message.fromMe) {
-            const cooldownUntil = Date.now() + (30 * 60 * 1000); // 30 mins
-            cooldownMap[clientId].set(number, cooldownUntil);
 
-            console.log(`Human takeover activated for ${number}`);
-            return;
-        }
+    const targetNumber = message.to; // 🔥 THIS is customer number
+
+    const cooldownUntil = Date.now() + (30 * 60 * 1000);
+
+    cooldownMap[clientId].set(targetNumber, cooldownUntil);
+
+    console.log(`Human takeover activated for ${targetNumber}`);
+
+    return;
+}
 
         // If user sends message → check cooldown
         const cooldownExpiry = cooldownMap[clientId].get(number);

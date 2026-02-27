@@ -45,18 +45,35 @@ app.post("/send-message", async (req, res) => {
     const { clientId, number, message } = req.body;
 
     try {
+        console.log("Incoming body:", req.body);
+
         const client = clientStore[clientId];
 
         if (!client) {
             return res.status(400).json({ error: "Client not found" });
         }
 
-        await client.sendMessage(number + "@c.us", message);
+        if (!client.info) {
+            return res.status(400).json({ error: "Client not ready yet" });
+        }
+
+        // 🔥 Safe number formatting
+        const formattedNumber = number.includes("@c.us")
+            ? number
+            : number.replace(/\D/g, "") + "@c.us";
+
+        console.log("Sending to:", formattedNumber);
+
+        await client.sendMessage(formattedNumber, message);
 
         res.json({ success: true });
+
     } catch (err) {
-        console.error(err);
-        res.status(500).json({ error: "Failed to send message" });
+        console.error("SEND MESSAGE ERROR:", err);
+        res.status(500).json({
+            error: "Failed to send message",
+            details: err.message
+        });
     }
 });
 
