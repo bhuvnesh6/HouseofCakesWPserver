@@ -5,13 +5,16 @@ const clients = require("./config/clients");
 const app = express();
 const { initClient, getQR, isClientInitialized } = require("./services/whatsapp");
 
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
 app.use(express.static("public"));
 
 app.get("/", (req, res) => {
     res.send("WhatsApp Multi-Client AI Server Running");
 });
 
-// 🔥 Start client only when button clicked
+
 app.get("/start/:clientId", async (req, res) => {
     const clientId = req.params.clientId;
 
