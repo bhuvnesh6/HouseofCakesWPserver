@@ -37,6 +37,26 @@ app.get("/qr/:clientId", (req, res) => {
     res.send(`<img src="${qr}" width="300"/>`);
 });
 
+
+app.post("/send-message", async (req, res) => {
+    const { clientId, number, message } = req.body;
+
+    try {
+        const client = clientStore[clientId];
+
+        if (!client) {
+            return res.status(400).json({ error: "Client not found" });
+        }
+
+        await client.sendMessage(number + "@c.us", message);
+
+        res.json({ success: true });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Failed to send message" });
+    }
+});
+
 app.listen(process.env.PORT, () => {
     console.log(`Server running on port ${process.env.PORT}`);
 });

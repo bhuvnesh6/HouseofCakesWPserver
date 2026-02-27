@@ -6,6 +6,12 @@ const qrStore = {};
 const clientStore = {};
 const statusStore = {};
 
+// 🔥 Per-client duplicate protection
+const processedMessages = {};
+
+// 🔥 Per-client human takeover cooldown
+const cooldownMap = {};
+
 async function initClient(clientConfig) {
 
     if (clientStore[clientConfig.id]) {
@@ -20,46 +26,103 @@ async function initClient(clientConfig) {
             clientId: clientConfig.id,
             dataPath: clientConfig.sessionPath
         }),
-        puppeteer: { headless: true, args: ["--no-sandbox"] }
+        puppeteer: {
+            headless: true,
+            args: ["--no-sandbox", "--disable-setuid-sandbox"]
+        }
     });
 
     clientStore[clientConfig.id] = client;
     statusStore[clientConfig.id] = "initializing";
 
-    // 🔥 QR
+    // Initialize stores per client
+    processedMessages[clientConfig.id] = new Set();
+    cooldownMap[clientConfig.id] = new Map();
+
+    /* =========================
+       🔥 QR EVENT
+    ========================= */
     client.on("qr", async (qr) => {
         console.log(`QR generated for ${clientConfig.id}`);
         qrStore[clientConfig.id] = await QRCode.toDataURL(qr);
         statusStore[clientConfig.id] = "qr";
     });
 
-    // ✅ Ready
+    /* =========================
+       ✅ READY EVENT
+    ========================= */
     client.on("ready", () => {
         console.log(`${clientConfig.id} is ready`);
         qrStore[clientConfig.id] = null;
         statusStore[clientConfig.id] = "ready";
     });
 
-    // ❌ Disconnected
+    /* =========================
+       ❌ DISCONNECTED
+    ========================= */
     client.on("disconnected", (reason) => {
         console.log(`${clientConfig.id} disconnected:`, reason);
         statusStore[clientConfig.id] = "disconnected";
         delete clientStore[clientConfig.id];
     });
 
-    // 💬 Message
+    /* =========================
+       💬 MESSAGE HANDLER
+    ========================= */
     client.on("message", async (message) => {
 
-        if (message.fromMe) return;
         if (!message.body) return;
         if (message.from.includes("@lid")) return;
         if (message.from.endsWith("@g.us")) return;
         if (message.from.endsWith("@broadcast")) return;
 
-        console.log(`Message from ${message.from} on ${clientConfig.id}`);
+        const clientId = clientConfig.id;
+        const number = message.from;
+        const messageId = message.id._serialized;
+
+        /* =========================
+           🔁 DUPLICATE PROTECTION
+        ========================= */
+        if (processedMessages[clientId].has(messageId)) {
+            return;
+        }
+
+        processedMessages[clientId].add(messageId);
+
+        // Auto cleanup after 2 minutes
+        setTimeout(() => {
+            processedMessages[clientId].delete(messageId);
+        }, 2 * 60 * 1000);
+
+        /* =========================
+           🧑 HUMAN TAKEOVER
+        ========================= */
+
+        // If YOU manually send message
+        if (message.fromMe) {
+            const cooldownUntil = Date.now() + (30 * 60 * 1000); // 30 mins
+            cooldownMap[clientId].set(number, cooldownUntil);
+
+            console.log(`Human takeover activated for ${number}`);
+            return;
+        }
+
+        // If user sends message → check cooldown
+        const cooldownExpiry = cooldownMap[clientId].get(number);
+
+        if (cooldownExpiry && Date.now() < cooldownExpiry) {
+            console.log(`Bot paused for ${number}`);
+            return;
+        }
+
+        /* =========================
+           🤖 NORMAL BOT FLOW
+        ========================= */
+
+        console.log(`Message from ${number} on ${clientId}`);
 
         const payload = {
-            number: message.from,
+            number: number,
             message: message.body
         };
 
@@ -71,7 +134,7 @@ async function initClient(clientConfig) {
 
             if (!aiResponse) return;
 
-            await handleResponse(client, message.from, aiResponse);
+            await handleResponse(client, number, aiResponse);
 
         } catch (err) {
             console.error("Webhook error:", err.message);
@@ -88,7 +151,9 @@ async function initClient(clientConfig) {
 
 async function handleResponse(client, to, aiResponse) {
 
-    // 1️⃣ If structured messages array
+    if (!aiResponse) return;
+
+    // 1️⃣ Structured messages array
     if (Array.isArray(aiResponse.messages)) {
         for (const msg of aiResponse.messages) {
             await sendSingleMessage(client, to, msg);
@@ -96,13 +161,13 @@ async function handleResponse(client, to, aiResponse) {
         return;
     }
 
-    // 2️⃣ If simple reply (backward compatibility)
+    // 2️⃣ Simple reply
     if (aiResponse.reply) {
         await client.sendMessage(to, aiResponse.reply);
         return;
     }
 
-    // 3️⃣ If typed response
+    // 3️⃣ Typed response
     if (aiResponse.type) {
         await sendSingleMessage(client, to, aiResponse);
         return;
@@ -113,7 +178,7 @@ async function handleResponse(client, to, aiResponse) {
 
 
 /* =========================
-   🔥 SEND SINGLE MESSAGE
+   📤 SEND SINGLE MESSAGE
 ========================= */
 
 async function sendSingleMessage(client, to, msg) {
@@ -149,7 +214,7 @@ async function sendSingleMessage(client, to, msg) {
 
 
 /* =========================
-   HELPERS
+   🛠 HELPERS
 ========================= */
 
 function getQR(clientId) {
