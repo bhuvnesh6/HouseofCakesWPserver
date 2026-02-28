@@ -3,7 +3,13 @@ const express = require("express");
 const clients = require("./config/clients");
 
 const app = express();
-const { initClient, getQR, isClientInitialized } = require("./services/whatsapp");
+
+const { 
+    initClient, 
+    getQR, 
+    isClientInitialized,
+    getClient 
+} = require("./services/whatsapp");
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -47,7 +53,13 @@ app.post("/send-message", async (req, res) => {
     try {
         console.log("Incoming body:", req.body);
 
-        const client = clientStore[clientId];
+        if (!clientId || !number || !message) {
+            return res.status(400).json({
+                error: "clientId, number and message are required"
+            });
+        }
+
+        const client = getClient(clientId);
 
         if (!client) {
             return res.status(400).json({ error: "Client not found" });

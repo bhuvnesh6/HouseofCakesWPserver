@@ -35,7 +35,6 @@ async function initClient(clientConfig) {
     clientStore[clientConfig.id] = client;
     statusStore[clientConfig.id] = "initializing";
 
-    // Initialize stores per client
     processedMessages[clientConfig.id] = new Set();
     cooldownMap[clientConfig.id] = new Map();
 
@@ -67,6 +66,26 @@ async function initClient(clientConfig) {
     });
 
     /* =========================
+       🧑 HUMAN TAKEOVER (REGISTER ONCE)
+    ========================= */
+    client.on("message_create", (message) => {
+
+        // Only your manual messages
+        if (!message.fromMe) return;
+        if (!message.to) return;
+        if (message.to.endsWith("@g.us")) return;
+
+        const clientId = clientConfig.id;
+        const targetNumber = message.to;
+
+        const cooldownUntil = Date.now() + (30 * 60 * 1000); // 30 minutes
+
+        cooldownMap[clientId].set(targetNumber, cooldownUntil);
+
+        console.log(`🔥 Human takeover activated for ${targetNumber} (30 mins)`);
+    });
+
+    /* =========================
        💬 MESSAGE HANDLER
     ========================= */
     client.on("message", async (message) => {
@@ -95,29 +114,19 @@ async function initClient(clientConfig) {
         }, 2 * 60 * 1000);
 
         /* =========================
-           🧑 HUMAN TAKEOVER
+           🧑 CHECK HUMAN TAKEOVER
         ========================= */
 
-        // If YOU manually send message
-        if (message.fromMe) {
-
-    const targetNumber = message.to; // 🔥 THIS is customer number
-
-    const cooldownUntil = Date.now() + (30 * 60 * 1000);
-
-    cooldownMap[clientId].set(targetNumber, cooldownUntil);
-
-    console.log(`Human takeover activated for ${targetNumber}`);
-
-    return;
-}
-
-        // If user sends message → check cooldown
         const cooldownExpiry = cooldownMap[clientId].get(number);
 
         if (cooldownExpiry && Date.now() < cooldownExpiry) {
-            console.log(`Bot paused for ${number}`);
+            console.log(`⏸ Bot paused for ${number}`);
             return;
+        }
+
+        // Optional: auto remove expired cooldown
+        if (cooldownExpiry && Date.now() >= cooldownExpiry) {
+            cooldownMap[clientId].delete(number);
         }
 
         /* =========================
@@ -234,9 +243,14 @@ function getClientStatus(clientId) {
     return statusStore[clientId] || "not_started";
 }
 
+function getClient(clientId) {
+    return clientStore[clientId] || null;
+}
+
 module.exports = {
     initClient,
     getQR,
     isClientInitialized,
-    getClientStatus
+    getClientStatus,
+    getClient
 };
