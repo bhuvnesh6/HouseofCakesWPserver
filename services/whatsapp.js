@@ -5,13 +5,7 @@ const { sendToWebhook } = require("./webhook");
 const qrStore = {};
 const clientStore = {};
 const statusStore = {};
-
-// 🔥 Per-client duplicate protection
 const processedMessages = {};
-
-// 🔥 Per-client human takeover cooldown
-const cooldownMap = {};
-const botMessageIds = {};
 
 async function initClient(clientConfig) {
 
@@ -35,10 +29,8 @@ async function initClient(clientConfig) {
 
     clientStore[clientConfig.id] = client;
     statusStore[clientConfig.id] = "initializing";
-
     processedMessages[clientConfig.id] = new Set();
-    cooldownMap[clientConfig.id] = new Map();
-    botMessageIds[clientConfig.id] = new Set();
+
     /* =========================
        🔥 QR EVENT
     ========================= */
@@ -67,37 +59,6 @@ async function initClient(clientConfig) {
     });
 
     /* =========================
-       🧑 HUMAN TAKEOVER (REGISTER ONCE)
-    ========================= */
-    /* =========================
-   🧑 HUMAN TAKEOVER (REGISTER ONCE)
-========================= */
-client.on("message_create", (message) => {
-
-    if (!message.fromMe) return;
-    if (!message.to) return;
-    if (message.to.endsWith("@g.us")) return;
-
-    const clientId = clientConfig.id;
-    const messageId = message.id._serialized;
-
-    // 🔥 If this was sent by bot, ignore it
-    if (botMessageIds[clientId] && botMessageIds[clientId].has(messageId)) {
-        botMessageIds[clientId].delete(messageId);
-        return;
-    }
-
-    // 🔥 This is REAL manual phone reply
-    const targetNumber = message.to;
-
-    const cooldownUntil = Date.now() + (30 * 60 * 1000);
-
-    cooldownMap[clientId].set(targetNumber, cooldownUntil);
-
-    console.log(`🔥 Human takeover activated for ${targetNumber} (30 mins)`);
-});
-
-    /* =========================
        💬 MESSAGE HANDLER
     ========================= */
     client.on("message", async (message) => {
@@ -108,48 +69,26 @@ client.on("message_create", (message) => {
         if (message.from.endsWith("@broadcast")) return;
 
         const clientId = clientConfig.id;
-        const number = message.from;
         const messageId = message.id._serialized;
 
-        /* =========================
-           🔁 DUPLICATE PROTECTION
-        ========================= */
+        // Duplicate protection
         if (processedMessages[clientId].has(messageId)) {
             return;
         }
 
         processedMessages[clientId].add(messageId);
 
-        // Auto cleanup after 2 minutes
         setTimeout(() => {
             processedMessages[clientId].delete(messageId);
         }, 2 * 60 * 1000);
 
-        /* =========================
-           🧑 CHECK HUMAN TAKEOVER
-        ========================= */
-
-        const cooldownExpiry = cooldownMap[clientId].get(number);
-
-        if (cooldownExpiry && Date.now() < cooldownExpiry) {
-            console.log(`⏸ Bot paused for ${number}`);
-            return;
-        }
-
-        // Optional: auto remove expired cooldown
-        if (cooldownExpiry && Date.now() >= cooldownExpiry) {
-            cooldownMap[clientId].delete(number);
-        }
-
-        /* =========================
-           🤖 NORMAL BOT FLOW
-        ========================= */
-
-        console.log(`Message from ${number} on ${clientId}`);
+        console.log(`Message event on ${clientId}`);
 
         const payload = {
-            number: number,
-            message: message.body
+            number: message.from,
+            message: message.body,
+            fromMe: message.fromMe,
+            source: message.deviceType || "unknown"
         };
 
         try {
@@ -160,7 +99,7 @@ client.on("message_create", (message) => {
 
             if (!aiResponse) return;
 
-            await handleResponse(client, number, aiResponse, clientId);
+            await handleResponse(client, message.from, aiResponse);
 
         } catch (err) {
             console.error("Webhook error:", err.message);
@@ -172,55 +111,48 @@ client.on("message_create", (message) => {
 
 
 /* =========================
-   🔥 UNIVERSAL RESPONSE HANDLER
+   🔥 RESPONSE HANDLER
 ========================= */
 
-async function handleResponse(client, to, aiResponse, clientId) {
+async function handleResponse(client, to, aiResponse) {
 
     if (!aiResponse) return;
 
-    // 1️⃣ Structured messages array
     if (Array.isArray(aiResponse.messages)) {
         for (const msg of aiResponse.messages) {
-            await sendSingleMessage(client, to, msg, clientId);
+            await sendSingleMessage(client, to, msg);
         }
         return;
     }
 
-    // 2️⃣ Simple reply
     if (aiResponse.reply) {
-    const sentMessage = await client.sendMessage(to, aiResponse.reply);
-    botMessageIds[clientId].add(sentMessage.id._serialized);
-    return;
-}
+        await client.sendMessage(to, aiResponse.reply);
+        return;
+    }
 
-    // 3️⃣ Typed response
-if (aiResponse.type) {
-    await sendSingleMessage(client, to, aiResponse, clientId);
-    return;
-}
+    if (aiResponse.type) {
+        await sendSingleMessage(client, to, aiResponse);
+        return;
+    }
 
     console.log("Unknown response format");
 }
 
 
 /* =========================
-   📤 SEND SINGLE MESSAGE
+   📤 SEND MESSAGE
 ========================= */
 
-async function sendSingleMessage(client, to, msg, clientId) {
-
-    let sentMessage;
+async function sendSingleMessage(client, to, msg) {
 
     if (msg.type === "text") {
-        sentMessage = await client.sendMessage(to, msg.text);
+        await client.sendMessage(to, msg.text);
     }
 
     else if (msg.type === "image") {
         if (!msg.imageUrl) return;
-
         const media = await MessageMedia.fromUrl(msg.imageUrl);
-        sentMessage = await client.sendMessage(to, media, {
+        await client.sendMessage(to, media, {
             caption: msg.caption || ""
         });
     }
@@ -230,22 +162,14 @@ async function sendSingleMessage(client, to, msg, clientId) {
 
         for (const img of msg.images) {
             const media = await MessageMedia.fromUrl(img.url);
-            const multiMsg = await client.sendMessage(to, media, {
+            await client.sendMessage(to, media, {
                 caption: img.caption || ""
             });
-
-            botMessageIds[clientId].add(multiMsg.id._serialized);
         }
-        return;
     }
 
     else {
         console.log("Unsupported message type:", msg.type);
-        return;
-    }
-
-    if (sentMessage) {
-        botMessageIds[clientId].add(sentMessage.id._serialized);
     }
 }
 
